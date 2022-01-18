@@ -7,7 +7,7 @@ const ISO_HDLC: Crc<u32> = Crc::<u32>::new(&CRC_32_ISO_HDLC);
 const L_BOUNDARY: usize = 4;
 const CT_BOUNDARY: usize = 8;
 
-struct Chunk {
+pub struct Chunk {
     length: u32,
     chunk_type: ChunkType,
     data: Vec<u8>,
@@ -27,7 +27,7 @@ impl TryFrom<&[u8]> for Chunk {
         )?);
 
         if ISO_HDLC.checksum(&value[L_BOUNDARY..CT_BOUNDARY + length as usize]) != crc {
-            return anyhow::bail!("data doesn't match CRC");
+            anyhow::bail!("data doesn't match CRC");
         }
 
         Ok(Chunk {
@@ -46,6 +46,26 @@ impl Display for Chunk {
 }
 
 impl Chunk {
+    pub fn new(chunk_type: ChunkType, data: Vec<u8>) -> Chunk {
+        let length: u32 = (chunk_type.bytes().len() + data.len()).try_into().unwrap();
+
+        let crc = ISO_HDLC.checksum(
+            &chunk_type
+                .bytes()
+                .iter()
+                .chain(data.iter())
+                .copied()
+                .collect::<Vec<_>>(),
+        );
+
+        Chunk {
+            length,
+            chunk_type,
+            data,
+            crc,
+        }
+    }
+
     fn length(&self) -> u32 {
         self.length
     }
@@ -66,7 +86,7 @@ impl Chunk {
         Ok(std::str::from_utf8(&self.data)?.into())
     }
 
-    fn as_bytes(&self) -> Vec<u8> {
+    pub fn as_bytes(&self) -> Vec<u8> {
         todo!()
     }
 }
@@ -74,8 +94,6 @@ impl Chunk {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chunk_type::ChunkType;
-    use std::str::FromStr;
 
     fn testing_chunk() -> Chunk {
         let data_length: u32 = 42;
